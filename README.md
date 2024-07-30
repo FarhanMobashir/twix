@@ -12,7 +12,7 @@ Twix is a mini web framework in Go, designed to be simple yet powerful. It aims 
 ## Installation
 
 ```sh
-go get github.com/yourusername/twix
+go get github.com/farhanmobashir/twix
 ```
 
-### work in prgress
+### work in progress
