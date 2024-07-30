@@ -1,9 +1,15 @@
 package twix
 
-import "fmt"
+import (
+	"net/http"
 
-// Hello returns a greeting for the named person.
-func Hello(name string) string {
-	message := fmt.Sprintf("Hi, %v. Welcome!", name)
-	return message
+	"github.com/farhanmobashir/twix/internal/server"
+)
+
+func CreateRouter() *server.Router {
+	return server.NewRouter()
+}
+
+func AddRoute(r *server.Router, path string, handler http.HandlerFunc) {
+	r.AddRoute(path, handler)
 }
