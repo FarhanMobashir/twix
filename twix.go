@@ -8,48 +8,48 @@ import (
 
 // Router holds route definitions and middleware
 type Router struct {
-	routes      map[string]map[string]func(*Context)
+	routes      map[string]map[string]http.HandlerFunc
 	middlewares []func(http.Handler) http.Handler
 }
 
 // New creates a new Router instance
 func New() *Router {
 	return &Router{
-		routes:      make(map[string]map[string]func(*Context)),
+		routes:      make(map[string]map[string]http.HandlerFunc),
 		middlewares: []func(http.Handler) http.Handler{},
 	}
 }
 
 // AddRoute adds a route handler for a specific method and path
-func (r *Router) AddRoute(method, path string, handler func(*Context)) {
+func (r *Router) AddRoute(method, path string, handler http.HandlerFunc) {
 	if r.routes[path] == nil {
-		r.routes[path] = make(map[string]func(*Context))
+		r.routes[path] = make(map[string]http.HandlerFunc)
 	}
 	r.routes[path][method] = handler
 }
 
 // Get adds a GET route handler
-func (r *Router) Get(path string, handler func(*Context)) {
+func (r *Router) Get(path string, handler http.HandlerFunc) {
 	r.AddRoute("GET", path, handler)
 }
 
 // Post adds a POST route handler
-func (r *Router) Post(path string, handler func(*Context)) {
+func (r *Router) Post(path string, handler http.HandlerFunc) {
 	r.AddRoute("POST", path, handler)
 }
 
 // Delete adds a DELETE route handler
-func (r *Router) Delete(path string, handler func(*Context)) {
+func (r *Router) Delete(path string, handler http.HandlerFunc) {
 	r.AddRoute("DELETE", path, handler)
 }
 
 // Patch adds a PATCH route handler
-func (r *Router) Patch(path string, handler func(*Context)) {
+func (r *Router) Patch(path string, handler http.HandlerFunc) {
 	r.AddRoute("PATCH", path, handler)
 }
 
 // Put adds a PUT route handler
-func (r *Router) Put(path string, handler func(*Context)) {
+func (r *Router) Put(path string, handler http.HandlerFunc) {
 	r.AddRoute("PUT", path, handler)
 }
 
@@ -71,8 +71,8 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 				Params:         params,
 			}
 			if handler, ok := handlers[method]; ok {
-				finalHandler := applyMiddlewares(handler, r.middlewares)
-				finalHandler(ctx)
+				finalHandler := applyMiddlewares(handler, r.middlewares, ctx)
+				finalHandler.ServeHTTP(w, req)
 				return
 			}
 		}
@@ -82,20 +82,10 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 // applyMiddlewares applies middleware functions to a handler
-func applyMiddlewares(handler func(*Context), middlewares []func(http.Handler) http.Handler) func(*Context) {
+func applyMiddlewares(handler http.HandlerFunc, middlewares []func(http.Handler) http.Handler, ctx *Context) http.Handler {
 	// Convert the handler function into an http.Handler
 	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// We'll use a context key to pass the original Context through the middleware chain
-		ctx := r.Context()
-		origCtx, ok := ctx.Value("twixContext").(*Context)
-		if !ok {
-			// This shouldn't happen, but just in case
-			origCtx = &Context{
-				ResponseWriter: w,
-				Request:        r,
-			}
-		}
-		handler(origCtx)
+		handler(w, r)
 	})
 
 	// Apply middlewares in reverse order
@@ -104,11 +94,11 @@ func applyMiddlewares(handler func(*Context), middlewares []func(http.Handler) h
 	}
 
 	// Return a function that uses ServeHTTP on the resulting http.Handler
-	return func(ctx *Context) {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Store the original Context in the request's context
-		newReq := ctx.Request.WithContext(context.WithValue(ctx.Request.Context(), "twixContext", ctx))
-		h.ServeHTTP(ctx.ResponseWriter, newReq)
-	}
+		newReq := r.WithContext(context.WithValue(r.Context(), "twixContext", ctx))
+		h.ServeHTTP(w, newReq)
+	})
 }
 
 // matchRoute matches a route path with the request path and extracts parameters
@@ -130,4 +120,12 @@ func matchRoute(route, path string) (bool, map[string]string) {
 	}
 
 	return true, params
+}
+
+func URLParam(r *http.Request, param string) string {
+	ctx, ok := r.Context().Value("twixContext").(*Context)
+	if !ok {
+		return ""
+	}
+	return ctx.Params[param]
 }

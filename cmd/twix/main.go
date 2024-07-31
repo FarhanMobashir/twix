@@ -1,22 +1,36 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net/http"
-	"time"
 
 	"github.com/farhanmobashir/twix"
+	"github.com/farhanmobashir/twix/internal/utils/middlewares"
 )
 
-// Middleware function
-func loggingMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-		log.Printf("Started %s %s", r.Method, r.URL.Path)
-		next.ServeHTTP(w, r)
-		log.Printf("Completed %s %s in %v", r.Method, r.URL.Path, time.Since(start))
-	})
+// Handler function for the route
+func nameHandler(w http.ResponseWriter, r *http.Request) {
+	// Extract the name parameter from the request context
+	name := twix.URLParam(r, "name")
+	if name == "" {
+		// If the name parameter is missing, return a bad request error
+		http.Error(w, "Name parameter is missing", http.StatusBadRequest)
+		return
+	}
+
+	// Prepare the response
+	str := "Hello Wame " + name
+
+	// Set the content type and status code
+	w.Header().Set("Content-Type", "text/plain")
+	w.WriteHeader(http.StatusOK)
+
+	// Write the response body
+	_, err := w.Write([]byte(str))
+	if err != nil {
+		// Handle potential error when writing the response
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
 }
 
 func main() {
@@ -25,15 +39,10 @@ func main() {
 	router1 := twix.New()
 
 	// Add middleware using Use method
-	router1.Use(loggingMiddleware)
+	router1.Use(middlewares.LoggingMiddleware)
 
-	router1.Get("/:name", func(ctx *twix.Context) {
-		fmt.Println("API Hit")
-		name := ctx.Param("name")
-		fmt.Println(name, "name here")
-		str := "Hello  Wame " + name
-		ctx.Status(http.StatusOK).String(str)
-	})
+	// Define the route with the updated handler function
+	router1.Get("/:name", nameHandler)
 	mux1.Handle("/", router1)
 
 	// Define the servers
