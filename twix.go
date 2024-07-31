@@ -10,6 +10,14 @@ import (
 type Router struct {
 	routes      map[string]map[string]http.HandlerFunc
 	middlewares []func(http.Handler) http.Handler
+	groups      []*Group
+}
+
+// Group represents a routing group
+type Group struct {
+	prefix      string
+	middlewares []func(http.Handler) http.Handler
+	router      *Router
 }
 
 // New creates a new Router instance
@@ -18,6 +26,17 @@ func New() *Router {
 		routes:      make(map[string]map[string]http.HandlerFunc),
 		middlewares: []func(http.Handler) http.Handler{},
 	}
+}
+
+// Group creates a new routing group with a given prefix
+func (r *Router) Group(prefix string) *Group {
+	group := &Group{
+		prefix:      prefix,
+		router:      r,
+		middlewares: []func(http.Handler) http.Handler{},
+	}
+	r.groups = append(r.groups, group)
+	return group
 }
 
 // AddRoute adds a route handler for a specific method and path
@@ -81,9 +100,12 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	http.NotFound(w, req)
 }
 
+type contextKey string
+
+const twixContextKey contextKey = "twixContext"
+
 // applyMiddlewares applies middleware functions to a handler
 func applyMiddlewares(handler http.HandlerFunc, middlewares []func(http.Handler) http.Handler, ctx *Context) http.Handler {
-	// Convert the handler function into an http.Handler
 	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		handler(w, r)
 	})
@@ -96,7 +118,7 @@ func applyMiddlewares(handler http.HandlerFunc, middlewares []func(http.Handler)
 	// Return a function that uses ServeHTTP on the resulting http.Handler
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Store the original Context in the request's context
-		newReq := r.WithContext(context.WithValue(r.Context(), "twixContext", ctx))
+		newReq := r.WithContext(context.WithValue(r.Context(), twixContextKey, ctx))
 		h.ServeHTTP(w, newReq)
 	})
 }
@@ -123,9 +145,47 @@ func matchRoute(route, path string) (bool, map[string]string) {
 }
 
 func URLParam(r *http.Request, param string) string {
-	ctx, ok := r.Context().Value("twixContext").(*Context)
+	ctx, ok := r.Context().Value(twixContextKey).(*Context)
 	if !ok {
 		return ""
 	}
 	return ctx.Params[param]
+}
+
+// Group functions
+
+// AddRoute adds a route handler for a specific method and path within the group
+func (g *Group) AddRoute(method, path string, handler http.HandlerFunc) {
+	fullPath := g.prefix + path
+	g.router.AddRoute(method, fullPath, handler)
+}
+
+// Get adds a GET route handler within the group
+func (g *Group) Get(path string, handler http.HandlerFunc) {
+	g.AddRoute("GET", path, handler)
+}
+
+// Post adds a POST route handler within the group
+func (g *Group) Post(path string, handler http.HandlerFunc) {
+	g.AddRoute("POST", path, handler)
+}
+
+// Delete adds a DELETE route handler within the group
+func (g *Group) Delete(path string, handler http.HandlerFunc) {
+	g.AddRoute("DELETE", path, handler)
+}
+
+// Patch adds a PATCH route handler within the group
+func (g *Group) Patch(path string, handler http.HandlerFunc) {
+	g.AddRoute("PATCH", path, handler)
+}
+
+// Put adds a PUT route handler within the group
+func (g *Group) Put(path string, handler http.HandlerFunc) {
+	g.AddRoute("PUT", path, handler)
+}
+
+// Use adds middleware to the group
+func (g *Group) Use(middleware func(http.Handler) http.Handler) {
+	g.middlewares = append(g.middlewares, middleware)
 }
