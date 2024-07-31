@@ -45,7 +45,16 @@ func main() {
 	// Create a new router
 	router := twix.New()
 
+	// Define CORS configuration
+	corsConfig := middlewares.CorsConfig{
+		AllowedOrigins:   []string{"http://localhost:5173"},
+		AllowedMethods:   []string{"GET"},
+		AllowedHeaders:   []string{"Content-Type", "Authorization"},
+		AllowCredentials: true,
+	}
+
 	// Add middleware using Use method
+	router.Use(middlewares.CorsMiddleware(corsConfig))
 	router.Use(middlewares.LoggingMiddleware)
 
 	// Create a routing group with the prefix /api
@@ -55,7 +64,7 @@ func main() {
 	apiGroup.Get("/hello/:name", nameHandler)
 	apiGroup.Get("/greeting", greetingHandler)
 
-	// Define the servers
+	// Define the server
 	server := &http.Server{
 		Addr:    ":8080",
 		Handler: router,
