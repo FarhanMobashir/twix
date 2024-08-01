@@ -157,7 +157,9 @@ func URLParam(r *http.Request, param string) string {
 // AddRoute adds a route handler for a specific method and path within the group
 func (g *Group) AddRoute(method, path string, handler http.HandlerFunc) {
 	fullPath := g.prefix + path
-	g.router.AddRoute(method, fullPath, handler)
+	groupMiddlewares := append(g.middlewares, g.router.middlewares...)
+	finalHandler := applyMiddlewares(handler, groupMiddlewares, &Context{})
+	g.router.AddRoute(method, fullPath, finalHandler.ServeHTTP)
 }
 
 // Get adds a GET route handler within the group

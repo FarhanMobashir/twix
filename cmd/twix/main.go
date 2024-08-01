@@ -65,12 +65,16 @@ func main() {
 
 	// Add middleware using Use method
 	router.Use(middlewares.CorsMiddleware(corsConfig))
+	router.Use(middlewares.RecoveryMiddleware)
 	router.Use(middlewares.RateLimit(rateLimitConfig))
 	router.Use(middlewares.LoggingMiddleware)
-	router.Use(middlewares.JWTAuth(jwtConfig))
+
+	router.Get("/", func(http.ResponseWriter, *http.Request) { panic("foo") })
 
 	// Create a routing group with the prefix /api
 	apiGroup := router.Group("/api")
+
+	apiGroup.Use(middlewares.JWTAuth(jwtConfig))
 
 	// Define routes within the /api group
 	apiGroup.Get("/hello/:name", nameHandler)
