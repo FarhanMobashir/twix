@@ -2,7 +2,10 @@ module github.com/farhanmobashir/twix
 
 go 1.20
 
-require github.com/fatih/color v1.17.0
+require (
+	github.com/fatih/color v1.17.0
+	github.com/golang-jwt/jwt/v5 v5.2.1
+)
 
 require (
 	github.com/mattn/go-colorable v0.1.13 // indirect

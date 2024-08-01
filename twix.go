@@ -102,7 +102,7 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 type contextKey string
 
-const twixContextKey contextKey = "twixContext"
+const TwixContextKey contextKey = "twixContext"
 
 // applyMiddlewares applies middleware functions to a handler
 func applyMiddlewares(handler http.HandlerFunc, middlewares []func(http.Handler) http.Handler, ctx *Context) http.Handler {
@@ -118,7 +118,7 @@ func applyMiddlewares(handler http.HandlerFunc, middlewares []func(http.Handler)
 	// Return a function that uses ServeHTTP on the resulting http.Handler
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Store the original Context in the request's context
-		newReq := r.WithContext(context.WithValue(r.Context(), twixContextKey, ctx))
+		newReq := r.WithContext(context.WithValue(r.Context(), TwixContextKey, ctx))
 		h.ServeHTTP(w, newReq)
 	})
 }
@@ -145,7 +145,7 @@ func matchRoute(route, path string) (bool, map[string]string) {
 }
 
 func URLParam(r *http.Request, param string) string {
-	ctx, ok := r.Context().Value(twixContextKey).(*Context)
+	ctx, ok := r.Context().Value(TwixContextKey).(*Context)
 	if !ok {
 		return ""
 	}

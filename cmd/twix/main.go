@@ -11,7 +11,16 @@ import (
 
 // Handler function for the route
 func nameHandler(w http.ResponseWriter, r *http.Request) {
-	name := twix.URLParam(r, "name")
+	ctx, ok := r.Context().Value(twix.TwixContextKey).(*twix.Context)
+	if !ok {
+		http.Error(w, "Invalid context", http.StatusInternalServerError)
+		return
+	}
+
+	// Log the type of TokenClaims
+	log.Printf("TokenClaims type: %v", ctx.TokenClaims)
+
+	name := ctx.Param("name")
 	if name == "" {
 		http.Error(w, "Name parameter is missing", http.StatusBadRequest)
 		return
@@ -47,10 +56,18 @@ func main() {
 		WindowSize:   time.Second * 15,
 	}
 
+	// Define JWT Configuration
+	jwtConfig := middlewares.JWTConfig{
+		SecretKey:   []byte("hello"),
+		TokenSource: middlewares.Header, // or middlewares.Cookie if you prefer
+		CookieName:  "jwt_token",
+	}
+
 	// Add middleware using Use method
 	router.Use(middlewares.CorsMiddleware(corsConfig))
 	router.Use(middlewares.RateLimit(rateLimitConfig))
 	router.Use(middlewares.LoggingMiddleware)
+	router.Use(middlewares.JWTAuth(jwtConfig))
 
 	// Create a routing group with the prefix /api
 	apiGroup := router.Group("/api")
