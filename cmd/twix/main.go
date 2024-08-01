@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/farhanmobashir/twix"
 	"github.com/farhanmobashir/twix/internal/middlewares"
@@ -15,28 +16,15 @@ func nameHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Name parameter is missing", http.StatusBadRequest)
 		return
 	}
-
 	// Prepare the response
 	str := "Hello, " + name
-
 	// Set the content type and status code
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusOK)
-
 	// Write the response body
 	_, err := w.Write([]byte(str))
 	if err != nil {
 		// Handle potential error when writing the response
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-	}
-}
-
-// Handler function for a different route in the group
-func greetingHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_, err := w.Write([]byte(`{"message": "Hello, World!"}`))
-	if err != nil {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
 }
@@ -47,14 +35,21 @@ func main() {
 
 	// Define CORS configuration
 	corsConfig := middlewares.CorsConfig{
-		AllowedOrigins:   []string{"http://localhost:5173"},
+		AllowedOrigins:   []string{"*"},
 		AllowedMethods:   []string{"GET"},
 		AllowedHeaders:   []string{"Content-Type", "Authorization"},
 		AllowCredentials: true,
 	}
 
+	// Define Rate Limit Configuration
+	rateLimitConfig := middlewares.RateLimitConfig{
+		RequestLimit: 5,
+		WindowSize:   time.Second * 15,
+	}
+
 	// Add middleware using Use method
 	router.Use(middlewares.CorsMiddleware(corsConfig))
+	router.Use(middlewares.RateLimit(rateLimitConfig))
 	router.Use(middlewares.LoggingMiddleware)
 
 	// Create a routing group with the prefix /api
@@ -62,7 +57,6 @@ func main() {
 
 	// Define routes within the /api group
 	apiGroup.Get("/hello/:name", nameHandler)
-	apiGroup.Get("/greeting", greetingHandler)
 
 	// Define the server
 	server := &http.Server{
