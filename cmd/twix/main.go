@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/farhanmobashir/twix"
-	"github.com/farhanmobashir/twix/internal/middlewares"
+	"github.com/farhanmobashir/twix/middlewares"
 )
 
 // Handler function for the route
