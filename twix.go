@@ -6,6 +6,10 @@ import (
 	"strings"
 )
 
+type contextKey string
+
+const TwixContextKey contextKey = "twixContext"
+
 // Router holds route definitions and middleware
 type Router struct {
 	routes      map[string]map[string]http.HandlerFunc
@@ -77,21 +81,22 @@ func (r *Router) Use(middleware func(http.Handler) http.Handler) {
 	r.middlewares = append(r.middlewares, middleware)
 }
 
-// ServeHTTP processes HTTP requests
+// In the twix package (Router struct file)
+
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	path := req.URL.Path
 	method := req.Method
 
 	for route, handlers := range r.routes {
 		if match, params := matchRoute(route, path); match {
-			ctx := &Context{
-				ResponseWriter: w,
-				Request:        req,
-				Params:         params,
-			}
 			if handler, ok := handlers[method]; ok {
-				finalHandler := applyMiddlewares(handler, r.middlewares, ctx)
-				finalHandler.ServeHTTP(w, req)
+				ctx := &Context{
+					ResponseWriter: w,
+					Request:        req,
+					Params:         params,
+				}
+				req = req.WithContext(context.WithValue(req.Context(), TwixContextKey, ctx))
+				handler.ServeHTTP(w, req)
 				return
 			}
 		}
@@ -100,27 +105,25 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	http.NotFound(w, req)
 }
 
-type contextKey string
+func applyMiddlewares(handler http.HandlerFunc, middlewares []func(http.Handler) http.Handler) http.HandlerFunc {
+	h := http.HandlerFunc(handler)
 
-const TwixContextKey contextKey = "twixContext"
-
-// applyMiddlewares applies middleware functions to a handler
-func applyMiddlewares(handler http.HandlerFunc, middlewares []func(http.Handler) http.Handler, ctx *Context) http.Handler {
-	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		handler(w, r)
-	})
-
-	// Apply middlewares in reverse order
 	for i := len(middlewares) - 1; i >= 0; i-- {
 		h = middlewares[i](h).(http.HandlerFunc)
 	}
 
-	// Return a function that uses ServeHTTP on the resulting http.Handler
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Store the original Context in the request's context
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context().Value(TwixContextKey).(*Context)
+		if ctx == nil {
+			ctx = &Context{
+				ResponseWriter: w,
+				Request:        r,
+				Params:         make(map[string]string),
+			}
+		}
 		newReq := r.WithContext(context.WithValue(r.Context(), TwixContextKey, ctx))
 		h.ServeHTTP(w, newReq)
-	})
+	}
 }
 
 // matchRoute matches a route path with the request path and extracts parameters
@@ -128,12 +131,15 @@ func matchRoute(route, path string) (bool, map[string]string) {
 	routeParts := strings.Split(route, "/")
 	pathParts := strings.Split(path, "/")
 
-	if len(routeParts) != len(pathParts) {
+	if len(routeParts) > len(pathParts) {
 		return false, nil
 	}
 
 	params := make(map[string]string)
 	for i, part := range routeParts {
+		if i >= len(pathParts) {
+			return false, nil
+		}
 		if strings.HasPrefix(part, ":") {
 			params[part[1:]] = pathParts[i]
 		} else if part != pathParts[i] {
@@ -152,14 +158,13 @@ func URLParam(r *http.Request, param string) string {
 	return ctx.Params[param]
 }
 
-// Group functions
-
-// AddRoute adds a route handler for a specific method and path within the group
 func (g *Group) AddRoute(method, path string, handler http.HandlerFunc) {
 	fullPath := g.prefix + path
-	groupMiddlewares := append(g.middlewares, g.router.middlewares...)
-	finalHandler := applyMiddlewares(handler, groupMiddlewares, &Context{})
-	g.router.AddRoute(method, fullPath, finalHandler.ServeHTTP)
+
+	allMiddlewares := append(g.middlewares, g.router.middlewares...)
+	finalHandler := applyMiddlewares(handler, allMiddlewares)
+
+	g.router.AddRoute(method, fullPath, finalHandler)
 }
 
 // Get adds a GET route handler within the group
