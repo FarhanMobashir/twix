@@ -168,7 +168,3 @@ router.Use(middlewares.RecoveryMiddleware)
 ## Contributing
 
 Contributions are welcome! Please open an issue or submit a pull request with any improvements or features you'd like to add.
-
-## Acknowledgements
-
-Thanks to all contributors and users for their support.
